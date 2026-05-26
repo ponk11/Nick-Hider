@@ -1,0 +1,34 @@
+plugins {
+    id 'java'
+}
+
+group = 'dev.nickbypass'
+version = '1.0.0'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+    maven { url = 'https://repo.essentialsx.net/releases/' }
+}
+
+dependencies {
+    compileOnly 'io.papermc.paper:paper-api:1.20.1-R0.1-SNAPSHOT'
+    compileOnly('net.essentialsx:EssentialsX:2.21.0') {
+        exclude group: 'org.spigotmc', module: 'spigot-api'
+    }
+}
+
+configurations.all {
+    resolutionStrategy.capabilitiesResolution.withCapability('org.spigotmc:spigot-api') {
+        selectHighestVersion()
+    }
+}
+
+jar {
+    archiveFileName = "NickBypass-${version}.jar"
+}
