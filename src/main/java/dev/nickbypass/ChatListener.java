@@ -1,16 +1,18 @@
 package dev.nickbypass;
 
-import com.earth2me.essentials.Essentials;
-import com.earth2me.essentials.User;
-import io.papermc.paper.event.player.AsyncChatEvent;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.TextReplacementConfig;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+
+import com.earth2me.essentials.Essentials;
+import com.earth2me.essentials.User;
+
+import io.papermc.paper.event.player.AsyncChatEvent;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextReplacementConfig;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 public class ChatListener implements Listener {
 
@@ -37,36 +39,34 @@ public class ChatListener implements Listener {
 
         if (!hasNickname(sender)) return;
 
-        // Get the plain text of whatever the display name renders as (strips all formatting)
         String plainDisplayName = PlainTextComponentSerializer.plainText()
                 .serialize(sender.displayName())
-                .replaceAll("§[0-9a-fk-orA-FK-OR]", "") // strip any legacy § codes just in case
+                .replaceAll("§[0-9a-fk-orA-FK-OR]", "")
                 .trim();
 
         if (plainDisplayName.isEmpty() || plainDisplayName.equals(sender.getName())) return;
 
-        Component realName = Component.text(sender.getName());
+        // Store values for use in the renderer
+        String realName = sender.getName();
+        Component displayName = sender.displayName();
+        var originalRenderer = event.renderer();
 
-        event.viewers().removeIf(audience -> {
-            if (!(audience instanceof Player viewer)) return false;
-            if (!plugin.isBypassing(viewer)) return false;
+        // Replace the renderer with a per-viewer one
+        event.renderer((msgSender, senderDisplayName, message, viewer) -> {
+            // Render the message using the original renderer first
+            Component rendered = originalRenderer.render(msgSender, senderDisplayName, message, viewer);
 
-            Component rendered = event.renderer().render(
-                    sender,
-                    sender.displayName(),
-                    event.message(),
-                    viewer
-            );
+            // If the viewer is a bypassing staff member, swap the nickname for the real name
+            if (viewer instanceof Player viewerPlayer && plugin.isBypassing(viewerPlayer)) {
+                rendered = rendered.replaceText(
+                        TextReplacementConfig.builder()
+                                .matchLiteral(plainDisplayName)
+                                .replacement(Component.text(realName))
+                                .build()
+                );
+            }
 
-            Component replaced = rendered.replaceText(
-                    TextReplacementConfig.builder()
-                            .matchLiteral(plainDisplayName)
-                            .replacement(realName)
-                            .build()
-            );
-
-            viewer.sendMessage(replaced);
-            return true;
+            return rendered;
         });
     }
 
