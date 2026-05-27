@@ -3,7 +3,9 @@ version: '1.0.0'
 main: dev.nickbypass.NickBypass
 api-version: '1.19'
 description: Allows staff to bypass nicknames and see real usernames in chat.
-authors: [ ]
+authors: []
+depend:
+  - Essentials
 
 commands:
   nickbypass:
