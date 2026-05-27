@@ -5,7 +5,6 @@ import com.earth2me.essentials.User;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextReplacementConfig;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -36,8 +35,17 @@ public class ChatListener implements Listener {
     public void onChat(AsyncChatEvent event) {
         Player sender = event.getPlayer();
 
-        String nickname = getNickname(sender);
-        if (nickname == null || nickname.equals(sender.getName())) return;
+        if (!hasNickname(sender)) return;
+
+        // Get the plain text of whatever the display name renders as (strips all formatting)
+        String plainDisplayName = PlainTextComponentSerializer.plainText()
+                .serialize(sender.displayName())
+                .replaceAll("§[0-9a-fk-orA-FK-OR]", "") // strip any legacy § codes just in case
+                .trim();
+
+        if (plainDisplayName.isEmpty() || plainDisplayName.equals(sender.getName())) return;
+
+        Component realName = Component.text(sender.getName());
 
         event.viewers().removeIf(audience -> {
             if (!(audience instanceof Player viewer)) return false;
@@ -52,28 +60,24 @@ public class ChatListener implements Listener {
 
             Component replaced = rendered.replaceText(
                     TextReplacementConfig.builder()
-                            .matchLiteral(nickname)
-                            .replacement(Component.text(sender.getName()))
+                            .matchLiteral(plainDisplayName)
+                            .replacement(realName)
                             .build()
             );
 
             viewer.sendMessage(replaced);
-            return true; // remove from default viewers so they don't get it twice
+            return true;
         });
     }
 
-    private String getNickname(Player player) {
+    private boolean hasNickname(Player player) {
         Essentials ess = getEssentials();
-        if (ess == null) return null;
+        if (ess == null) return false;
 
         User user = ess.getUser(player);
-        if (user == null) return null;
+        if (user == null) return false;
 
         String nick = user.getNickname();
-        if (nick == null || nick.isBlank()) return null;
-
-        // Strip color/formatting codes to get plain text for matching
-        Component nickComponent = LegacyComponentSerializer.legacyAmpersand().deserialize(nick);
-        return PlainTextComponentSerializer.plainText().serialize(nickComponent);
+        return nick != null && !nick.isBlank() && !nick.equals(player.getName());
     }
 }
