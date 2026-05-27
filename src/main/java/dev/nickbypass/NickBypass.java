@@ -12,14 +12,25 @@ public class NickBypass extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        // Create plugin folder and default config
+        saveDefaultConfig();
+
         getServer().getPluginManager().registerEvents(new ChatListener(this), this);
         getCommand("nickbypass").setExecutor(new NickBypassCommand(this));
-        getLogger().info("NickBypass enabled.");
+        getLogger().info("NickBypass enabled successfully.");
+
+        // Verify Essentials is loaded
+        if (getServer().getPluginManager().getPlugin("Essentials") == null) {
+            getLogger().severe("Essentials not found! NickBypass will not work.");
+        } else {
+            getLogger().info("Essentials hooked successfully.");
+        }
     }
 
     @Override
     public void onDisable() {
         bypassEnabled.clear();
+        getLogger().info("NickBypass disabled.");
     }
 
     public boolean isBypassing(Player player) {

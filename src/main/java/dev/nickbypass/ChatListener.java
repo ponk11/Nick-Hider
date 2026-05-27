@@ -1,16 +1,20 @@
 package dev.nickbypass;
 
-import com.earth2me.essentials.Essentials;
-import com.earth2me.essentials.User;
-import io.papermc.paper.event.player.AsyncChatEvent;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.TextReplacementConfig;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+
+import com.earth2me.essentials.Essentials;
+import com.earth2me.essentials.User;
+
+import io.papermc.paper.event.player.AsyncChatEvent;
+import net.kyori.adventure.audience.Audience;
+import net.kyori.adventure.text.Component;
 
 public class ChatListener implements Listener {
 
@@ -31,62 +35,43 @@ public class ChatListener implements Listener {
         return essentials;
     }
 
-    // HIGHEST — runs after LPC has already set its renderer, so we wrap theirs
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    // Run at MONITOR (after everyone including LPC is done)
+    // Send a separately-rendered message to bypassing staff
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onChat(AsyncChatEvent event) {
         Player sender = event.getPlayer();
 
         if (!hasNickname(sender)) return;
 
-        // Get the plain-text nickname from Essentials directly — most reliable source
-        String plainNick = getPlainNickname(sender);
-        if (plainNick == null || plainNick.equals(sender.getName())) return;
-
-        String realName = sender.getName();
-
-        // At HIGHEST, LPC's renderer is already set — we wrap it here
-        var lpcRenderer = event.renderer();
-
-        event.renderer((msgSender, senderDisplayName, message, viewer) -> {
-            // Let LPC (or whoever) render it first
-            Component rendered = lpcRenderer.render(msgSender, senderDisplayName, message, viewer);
-
-            // Only swap for bypassing staff
-            if (!(viewer instanceof Player viewerPlayer) || !plugin.isBypassing(viewerPlayer)) {
-                return rendered;
+        // Find bypassing staff in the viewer list
+        List<Player> bypassViewers = new ArrayList<>();
+        for (Audience audience : event.viewers()) {
+            if (audience instanceof Player viewer && plugin.isBypassing(viewer)) {
+                bypassViewers.add(viewer);
             }
+        }
 
-            // Replace the plain nickname text anywhere it appears in the rendered line
-            return rendered.replaceText(
-                    TextReplacementConfig.builder()
-                            .matchLiteral(plainNick)
-                            .replacement(Component.text(realName))
-                            .build()
-            );
-        });
-    }
+        if (bypassViewers.isEmpty()) return;
 
-    private String getPlainNickname(Player player) {
-        Essentials ess = getEssentials();
-        if (ess == null) return null;
+        // Remove bypassing staff from the normal viewer set so they don't get the nicknamed version
+        event.viewers().removeAll(bypassViewers);
 
-        User user = ess.getUser(player);
-        if (user == null) return null;
+        // Re-render the message with the real username as display name, and send manually
+        Component realDisplayName = Component.text(sender.getName());
+        Component message = event.message();
+        var renderer = event.renderer();
 
-        String nick = user.getNickname();
-        if (nick == null || nick.isBlank()) return null;
-
-        // Strip legacy color/format codes to get the raw visible text
-        return nick.replaceAll("(?i)§[0-9a-fk-or]", "").trim();
+        for (Player viewer : bypassViewers) {
+            Component rendered = renderer.render(sender, realDisplayName, message, viewer);
+            viewer.sendMessage(rendered);
+        }
     }
 
     private boolean hasNickname(Player player) {
         Essentials ess = getEssentials();
         if (ess == null) return false;
-
         User user = ess.getUser(player);
         if (user == null) return false;
-
         String nick = user.getNickname();
         return nick != null && !nick.isBlank() && !nick.equals(player.getName());
     }
